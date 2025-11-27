@@ -3,6 +3,7 @@ import { Header } from "@/Components/Header";
 import { Button } from "@/Components/ui/button";
 import { Input } from "@/Components/ui/input";
 import { Search, Plus, Minus, Edit, Trash2, FolderPlus, X } from "lucide-react";
+import { useToast } from "@/Hooks/use-toast"; // Importamos el hook toast
 import {
   Table,
   TableBody,
@@ -18,6 +19,14 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/Components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/Components/ui/alert-dialog"; // Importamos AlertDialog
 import { Label } from "@/Components/ui/label";
 import { Textarea } from "@/Components/ui/textarea";
 import MainLayout from "@/Layouts/MainLayout";
@@ -35,6 +44,9 @@ interface Product {
 }
 
 export default function Productos() {
+  const { toast } = useToast(); // Inicializamos el toast
+  
+  // Datos de ejemplo (en producción vendrían de Laravel via props)
   const [products, setProducts] = useState<Product[]>([
     {
       id: 1,
@@ -50,13 +62,16 @@ export default function Productos() {
   
   // Estados para diálogos
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false); // <--- NUEVO
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
-  
-  // Estados de búsqueda y categorías
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false); // Nuevo estado para eliminar
+
+  // Estados de búsqueda y selección
   const [searchQuery, setSearchQuery] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(null); // Para saber cuál eliminar
+  
   const [categories, setCategories] = useState<string[]>([
     "Bebidas",
     "Panadería",
@@ -75,7 +90,7 @@ export default function Productos() {
     existence: "",
   });
 
-  // Estado para EDITAR producto (Inicializado vacío)
+  // Estado para EDITAR producto
   const [editingProduct, setEditingProduct] = useState({
     id: 0,
     barcode: "",
@@ -103,11 +118,11 @@ export default function Productos() {
       stock: "",
       existence: "",
     });
+    toast({ title: "Producto creado", description: "Se ha registrado correctamente" });
   };
 
-  // --- Lógica para Editar (NUEVA) ---
+  // --- Lógica para Editar ---
   const handleEditClick = (product: Product) => {
-    // Cargamos los datos del producto seleccionado en el estado de edición
     setEditingProduct({
         id: product.id,
         barcode: product.barcode,
@@ -121,9 +136,64 @@ export default function Productos() {
   };
 
   const handleUpdateProduct = () => {
-    // Aquí iría router.put(`/productos/${editingProduct.id}`, editingProduct)
+    // Aquí iría router.put(...)
     console.log("Actualizando producto:", editingProduct);
+    // Simulación visual de actualización
+    setProducts(products.map(p => 
+        p.id === editingProduct.id ? {
+            ...p,
+            barcode: editingProduct.barcode,
+            description: editingProduct.description,
+            purchasePrice: Number(editingProduct.purchasePrice),
+            salePrice: Number(editingProduct.salePrice),
+            stock: Number(editingProduct.stock),
+            existence: Number(editingProduct.existence)
+        } : p
+    ));
     setIsEditDialogOpen(false);
+    toast({ title: "Producto actualizado", description: "Los cambios se guardaron correctamente" });
+  };
+
+  // --- Lógica de Stock (+/-) ---
+  const handleIncreaseExistence = (productId: number) => {
+    // Aquí iría una petición al backend para sumar stock
+    setProducts(products.map(p => 
+      p.id === productId ? { ...p, existence: p.existence + 1 } : p
+    ));
+    toast({
+      title: "Existencia aumentada",
+      description: "Se agregó 1 unidad al producto",
+    });
+  };
+
+  const handleDecreaseExistence = (productId: number) => {
+    // Aquí iría una petición al backend para restar stock
+    setProducts(products.map(p => 
+      p.id === productId && p.existence > 0 ? { ...p, existence: p.existence - 1 } : p
+    ));
+    toast({
+      title: "Existencia reducida",
+      description: "Se removió 1 unidad del producto",
+    });
+  };
+
+  // --- Lógica de Eliminación ---
+  const handleDeleteProduct = (productId: number) => {
+    setSelectedProductId(productId);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteProduct = () => {
+    if (selectedProductId) {
+      // Aquí iría router.delete(`/productos/${selectedProductId}`)
+      setProducts(products.filter(p => p.id !== selectedProductId));
+      toast({
+        title: "Producto eliminado",
+        description: "El producto ha sido removido del inventario",
+      });
+      setIsDeleteDialogOpen(false);
+      setSelectedProductId(null);
+    }
   };
 
   // --- Lógica de Categorías ---
@@ -150,7 +220,6 @@ export default function Productos() {
         
         <main className="flex-1 p-6 bg-background">
           <div className="max-w-7xl mx-auto">
-            {/* Barra de búsqueda y botón categorías */}
             <div className="mb-6 flex items-center gap-4">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -171,7 +240,6 @@ export default function Productos() {
               </Button>
             </div>
 
-            {/* Tabla de Productos */}
             <div className="bg-card rounded-lg border border-border">
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <div className="flex items-center gap-2">
@@ -195,7 +263,7 @@ export default function Productos() {
                     <TableHead>P. venta</TableHead>
                     <TableHead>Utilidad</TableHead>
                     <TableHead>Existencia</TableHead>
-                    <TableHead>Stock</TableHead>
+                    <TableHead>Stock Minimo</TableHead>
                     <TableHead>Opciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -212,13 +280,27 @@ export default function Productos() {
                       <TableCell>{product.stock}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
-                          <Button size="sm" variant="outline" className="h-8 w-8 p-0">
+                          {/* Botón MENOS */}
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="h-8 w-8 p-0"
+                            onClick={() => handleDecreaseExistence(product.id)}
+                          >
                             <Minus className="w-4 h-4 text-warning" />
                           </Button>
-                          <Button size="sm" variant="outline" className="h-8 w-8 p-0">
+                          
+                          {/* Botón MÁS */}
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="h-8 w-8 p-0"
+                            onClick={() => handleIncreaseExistence(product.id)}
+                          >
                             <Plus className="w-4 h-4 text-info" />
                           </Button>
-                          {/* BOTÓN EDITAR CON FUNCIONALIDAD AGREGADA */}
+
+                          {/* Botón EDITAR */}
                           <Button 
                             size="sm" 
                             variant="outline" 
@@ -227,7 +309,14 @@ export default function Productos() {
                           >
                             <Edit className="w-4 h-4 text-warning" />
                           </Button>
-                          <Button size="sm" variant="outline" className="h-8 w-8 p-0">
+
+                          {/* Botón ELIMINAR */}
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="h-8 w-8 p-0"
+                            onClick={() => handleDeleteProduct(product.id)}
+                          >
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
                         </div>
@@ -255,235 +344,234 @@ export default function Productos() {
           <Plus className="w-6 h-6" />
         </Button>
 
-    {/* --- DIALOGO 1: AGREGAR PRODUCTO --- */}
-<Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-  <DialogContent>
-    <DialogHeader>
-      <DialogTitle>Registrar producto</DialogTitle>
-    </DialogHeader>
-    
-    <div className="space-y-4 py-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="barcode">Código de barras *</Label>
-          <Input
-            id="barcode"
-            value={newProduct.barcode}
-            onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })}
-            placeholder="Código de barras"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="name">Nombre *</Label>
-          <Input
-            id="name"
-            value={newProduct.description}
-            onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
-            placeholder="Nombre del producto"
-          />
-        </div>
-      </div>
+        {/* --- DIALOGO 1: AGREGAR PRODUCTO --- */}
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Registrar producto</DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="barcode">Código de barras *</Label>
+                  <Input
+                    id="barcode"
+                    value={newProduct.barcode}
+                    onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })}
+                    placeholder="Código de barras"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="name">Nombre *</Label>
+                  <Input
+                    id="name"
+                    value={newProduct.description}
+                    onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
+                    placeholder="Nombre del producto"
+                  />
+                </div>
+              </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="description">Descripción</Label>
-        <Textarea
-          id="description"
-          value={newProduct.description}
-          onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
-          placeholder="Descripción del producto"
-          rows={3}
-        />
-      </div>
+              <div className="space-y-2">
+                <Label htmlFor="description">Descripción</Label>
+                <Textarea
+                  id="description"
+                  value={newProduct.description}
+                  onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
+                  placeholder="Descripción del producto"
+                  rows={3}
+                />
+              </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="purchase-price">Precio de compra *</Label>
-          <Input
-            id="purchase-price"
-            type="number"
-            step="0.01"
-            value={newProduct.purchasePrice}
-            onChange={(e) => setNewProduct({ ...newProduct, purchasePrice: e.target.value })}
-            placeholder="0.00"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="sale-price">Precio de venta *</Label>
-          <Input
-            id="sale-price"
-            type="number"
-            step="0.01"
-            value={newProduct.salePrice}
-            onChange={(e) => setNewProduct({ ...newProduct, salePrice: e.target.value })}
-            placeholder="0.00"
-          />
-        </div>
-      </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="purchase-price">Precio de compra *</Label>
+                  <Input
+                    id="purchase-price"
+                    type="number"
+                    step="0.01"
+                    value={newProduct.purchasePrice}
+                    onChange={(e) => setNewProduct({ ...newProduct, purchasePrice: e.target.value })}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sale-price">Precio de venta *</Label>
+                  <Input
+                    id="sale-price"
+                    type="number"
+                    step="0.01"
+                    value={newProduct.salePrice}
+                    onChange={(e) => setNewProduct({ ...newProduct, salePrice: e.target.value })}
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="stock">Stock *</Label>
-          <Input
-            id="stock"
-            type="number"
-            value={newProduct.stock}
-            onChange={(e) => setNewProduct({ ...newProduct, stock: e.target.value })}
-            placeholder="0"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="min-stock">Stock mínimo *</Label>
-          <Input
-            id="min-stock"
-            type="number"
-            value={newProduct.existence}
-            onChange={(e) => setNewProduct({ ...newProduct, existence: e.target.value })}
-            placeholder="5"
-            defaultValue="5"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="category">Categoría</Label>
-          <select
-            id="category"
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <option value="">Sin categoría</option>
-            {categories.map((category, index) => (
-              <option key={index} value={category}>
-                {category}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-    </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="stock">Stock *</Label>
+                  <Input
+                    id="stock"
+                    type="number"
+                    value={newProduct.stock}
+                    onChange={(e) => setNewProduct({ ...newProduct, stock: e.target.value })}
+                    placeholder="0"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="min-stock">Stock mínimo *</Label>
+                  <Input
+                    id="min-stock"
+                    type="number"
+                    value={newProduct.existence}
+                    onChange={(e) => setNewProduct({ ...newProduct, existence: e.target.value })}
+                    placeholder="5"
+                    defaultValue="5"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="category">Categoría</Label>
+                  <select
+                    id="category"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="">Sin categoría</option>
+                    {categories.map((category, index) => (
+                      <option key={index} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
 
-    <DialogFooter>
-      <Button variant="ghost" onClick={() => setIsAddDialogOpen(false)}>
-        CERRAR
-      </Button>
-      <Button onClick={handleSaveProduct} className="bg-success hover:bg-success/90">
-        GUARDAR
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setIsAddDialogOpen(false)}>
+                CERRAR
+              </Button>
+              <Button onClick={handleSaveProduct} className="bg-success hover:bg-success/90">
+                GUARDAR
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-{/* --- DIALOGO 2: EDITAR PRODUCTO --- */}
-<Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-  <DialogContent>
-    <DialogHeader>
-      <DialogTitle>Editar producto</DialogTitle>
-    </DialogHeader>
-    
-    <div className="space-y-4 py-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="edit-barcode">Código de barras *</Label>
-          <Input
-            id="edit-barcode"
-            value={editingProduct.barcode}
-            onChange={(e) => setEditingProduct({ ...editingProduct, barcode: e.target.value })}
-            placeholder="Código de barras"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="edit-name">Nombre *</Label>
-          <Input
-            id="edit-name"
-            value={editingProduct.description}
-            onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
-            placeholder="Nombre del producto"
-          />
-        </div>
-      </div>
+        {/* --- DIALOGO 2: EDITAR PRODUCTO --- */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Editar producto</DialogTitle>
+        </DialogHeader>
 
-      <div className="space-y-2">
-        <Label htmlFor="edit-description">Descripción</Label>
-        <Textarea
-          id="edit-description"
-          value={editingProduct.description}
-          onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
-          placeholder="Descripción del producto"
-          rows={3}
-        />
-      </div>
+        <div className="space-y-4 py-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-barcode">Código de barras *</Label>
+              <Input
+                id="edit-barcode"
+                value={editingProduct.barcode}
+                onChange={(e) => setEditingProduct({ ...editingProduct, barcode: e.target.value })}
+                placeholder="Código de barras"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Nombre *</Label>
+              <Input
+                id="edit-name"
+                value={editingProduct.description}
+                onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
+                placeholder="Nombre del producto"
+              />
+            </div>
+          </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="edit-purchase-price">Precio de compra *</Label>
-          <Input
-            id="edit-purchase-price"
-            type="number"
-            step="0.01"
-            value={editingProduct.purchasePrice}
-            onChange={(e) => setEditingProduct({ ...editingProduct, purchasePrice: e.target.value })}
-            placeholder="0.00"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="edit-sale-price">Precio de venta *</Label>
-          <Input
-            id="edit-sale-price"
-            type="number"
-            step="0.01"
-            value={editingProduct.salePrice}
-            onChange={(e) => setEditingProduct({ ...editingProduct, salePrice: e.target.value })}
-            placeholder="0.00"
-          />
-        </div>
-      </div>
+          <div className="space-y-2">
+            <Label htmlFor="edit-description">Descripción</Label>
+            <Textarea
+              id="edit-description"
+              value={editingProduct.description}
+              onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
+              placeholder="Descripción del producto"
+              rows={3}
+            />
+          </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="edit-stock">Stock *</Label>
-          <Input
-            id="edit-stock"
-            type="number"
-            value={editingProduct.stock}
-            onChange={(e) => setEditingProduct({ ...editingProduct, stock: e.target.value })}
-            placeholder="0"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="edit-min-stock">Stock mínimo *</Label>
-          <Input
-            id="edit-min-stock"
-            type="number"
-            value={editingProduct.existence}
-            onChange={(e) => setEditingProduct({ ...editingProduct, existence: e.target.value })}
-            placeholder="5"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="edit-category">Categoría</Label>
-          <select
-            id="edit-category"
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <option value="">Sin categoría</option>
-            {categories.map((category, index) => (
-              <option key={index} value={category}>
-                {category}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-    </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-purchase-price">Precio de compra *</Label>
+              <Input
+                id="edit-purchase-price"
+                type="number"
+                step="0.01"
+                value={editingProduct.purchasePrice}
+                onChange={(e) => setEditingProduct({ ...editingProduct, purchasePrice: e.target.value })}
+                placeholder="0.00"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-sale-price">Precio de venta *</Label>
+              <Input
+                id="edit-sale-price"
+                type="number"
+                step="0.01"
+                value={editingProduct.salePrice}
+                onChange={(e) => setEditingProduct({ ...editingProduct, salePrice: e.target.value })}
+                placeholder="0.00"
+              />
+            </div>
+          </div>
 
-    <DialogFooter>
-      <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)}>
-        CERRAR
-      </Button>
-      <Button onClick={handleUpdateProduct} className="bg-success hover:bg-success/90">
-        GUARDAR
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
-        
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-stock">Stock *</Label>
+              <Input
+                id="edit-stock"
+                type="number"
+                value={editingProduct.stock}
+                onChange={(e) => setEditingProduct({ ...editingProduct, stock: e.target.value })}
+                placeholder="0"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-min-stock">Stock mínimo *</Label>
+              <Input
+                id="edit-min-stock"
+                type="number"
+                value={editingProduct.existence}
+                onChange={(e) => setEditingProduct({ ...editingProduct, existence: e.target.value })}
+                placeholder="5"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-category">Categoría</Label>
+              <select
+                id="edit-category"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="">Sin categoría</option>
+                {categories.map((category, index) => (
+                  <option key={index} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)}>
+            CERRAR
+          </Button>
+          <Button onClick={handleUpdateProduct} className="bg-success hover:bg-success/90">
+            GUARDAR
+          </Button>
+        </DialogFooter>
+        </DialogContent>
+        </Dialog>
 
         {/* --- DIALOGO 3: CATEGORÍAS --- */}
         <Dialog open={isCategoryDialogOpen} onOpenChange={setIsCategoryDialogOpen}>
@@ -554,6 +642,30 @@ export default function Productos() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* --- DIALOGO 4: CONFIRMAR ELIMINACIÓN (NUEVO) --- */}
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar producto?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción no se puede deshacer. El producto será eliminado permanentemente del inventario.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <Button variant="ghost" onClick={() => setIsDeleteDialogOpen(false)}>
+                CANCELAR
+              </Button>
+              <Button
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={confirmDeleteProduct}
+              >
+                ELIMINAR
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
       </div>
     </MainLayout> 
   );
