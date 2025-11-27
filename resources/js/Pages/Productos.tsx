@@ -3,7 +3,7 @@ import { Header } from "@/Components/Header";
 import { Button } from "@/Components/ui/button";
 import { Input } from "@/Components/ui/input";
 import { Search, Plus, Minus, Edit, Trash2, FolderPlus, X } from "lucide-react";
-import { useToast } from "@/Hooks/use-toast"; // Importamos el hook toast
+import { useToast } from "@/Hooks/use-toast";
 import {
   Table,
   TableBody,
@@ -26,37 +26,38 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/Components/ui/alert-dialog"; // Importamos AlertDialog
+} from "@/Components/ui/alert-dialog";
 import { Label } from "@/Components/ui/label";
 import { Textarea } from "@/Components/ui/textarea";
 import MainLayout from "@/Layouts/MainLayout";
 import { Head } from "@inertiajs/react";
+import { Badge } from "@/Components/ui/badge";
 
 interface Product {
   id: number;
   barcode: string;
   description: string;
+  category: string; // Campo agregado
   purchasePrice: number;
   salePrice: number;
-  unit: string;
   existence: number;
-  stock: number;
+  minStock: number; // Usaremos minStock para el stock mínimo
 }
 
 export default function Productos() {
-  const { toast } = useToast(); // Inicializamos el toast
+  const { toast } = useToast();
   
-  // Datos de ejemplo (en producción vendrían de Laravel via props)
+  // Datos de ejemplo
   const [products, setProducts] = useState<Product[]>([
     {
       id: 1,
       barcode: "1",
-      description: "pan",
-      purchasePrice: 20,
-      salePrice: 20,
-      unit: "$ 0.00",
+      description: "Pan Blanco Bimbo",
+      category: "Panadería",
+      purchasePrice: 15.00,
+      salePrice: 20.00,
       existence: 20,
-      stock: 20,
+      minStock: 5,
     },
   ]);
   
@@ -64,13 +65,13 @@ export default function Productos() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false); // Nuevo estado para eliminar
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   // Estados de búsqueda y selección
   const [searchQuery, setSearchQuery] = useState("");
   const [categorySearch, setCategorySearch] = useState("");
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [selectedProductId, setSelectedProductId] = useState<number | null>(null); // Para saber cuál eliminar
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
   
   const [categories, setCategories] = useState<string[]>([
     "Bebidas",
@@ -84,10 +85,11 @@ export default function Productos() {
   const [newProduct, setNewProduct] = useState({
     barcode: "",
     description: "",
+    category: "",
     purchasePrice: "",
     salePrice: "",
-    stock: "",
-    existence: "",
+    existence: "", // Stock actual
+    minStock: "",  // Stock mínimo
   });
 
   // Estado para EDITAR producto
@@ -95,10 +97,11 @@ export default function Productos() {
     id: 0,
     barcode: "",
     description: "",
+    category: "",
     purchasePrice: "",
     salePrice: "",
-    stock: "",
     existence: "",
+    minStock: "",
   });
 
   // --- Lógica para Agregar ---
@@ -107,16 +110,33 @@ export default function Productos() {
   };
 
   const handleSaveProduct = () => {
-    // Aquí iría router.post('/productos', newProduct)
-    console.log("Guardando nuevo:", newProduct);
+    // Validación básica
+    if (!newProduct.description || !newProduct.salePrice) {
+        toast({ title: "Error", description: "Completa los campos obligatorios", variant: "destructive" });
+        return;
+    }
+
+    const productToAdd: Product = {
+        id: Math.max(...products.map(p => p.id), 0) + 1,
+        barcode: newProduct.barcode || "S/C",
+        description: newProduct.description,
+        category: newProduct.category || "General",
+        purchasePrice: parseFloat(newProduct.purchasePrice) || 0,
+        salePrice: parseFloat(newProduct.salePrice) || 0,
+        existence: parseInt(newProduct.existence) || 0,
+        minStock: parseInt(newProduct.minStock) || 0,
+    };
+
+    setProducts([...products, productToAdd]);
     setIsAddDialogOpen(false);
     setNewProduct({
       barcode: "",
       description: "",
+      category: "",
       purchasePrice: "",
       salePrice: "",
-      stock: "",
       existence: "",
+      minStock: "",
     });
     toast({ title: "Producto creado", description: "Se ha registrado correctamente" });
   };
@@ -127,27 +147,26 @@ export default function Productos() {
         id: product.id,
         barcode: product.barcode,
         description: product.description,
+        category: product.category,
         purchasePrice: product.purchasePrice.toString(),
         salePrice: product.salePrice.toString(),
-        stock: product.stock.toString(),
         existence: product.existence.toString(),
+        minStock: product.minStock.toString(),
     });
     setIsEditDialogOpen(true);
   };
 
   const handleUpdateProduct = () => {
-    // Aquí iría router.put(...)
-    console.log("Actualizando producto:", editingProduct);
-    // Simulación visual de actualización
     setProducts(products.map(p => 
         p.id === editingProduct.id ? {
             ...p,
             barcode: editingProduct.barcode,
             description: editingProduct.description,
+            category: editingProduct.category,
             purchasePrice: Number(editingProduct.purchasePrice),
             salePrice: Number(editingProduct.salePrice),
-            stock: Number(editingProduct.stock),
-            existence: Number(editingProduct.existence)
+            existence: Number(editingProduct.existence),
+            minStock: Number(editingProduct.minStock),
         } : p
     ));
     setIsEditDialogOpen(false);
@@ -156,25 +175,17 @@ export default function Productos() {
 
   // --- Lógica de Stock (+/-) ---
   const handleIncreaseExistence = (productId: number) => {
-    // Aquí iría una petición al backend para sumar stock
     setProducts(products.map(p => 
       p.id === productId ? { ...p, existence: p.existence + 1 } : p
     ));
-    toast({
-      title: "Existencia aumentada",
-      description: "Se agregó 1 unidad al producto",
-    });
+    toast({ title: "Existencia aumentada" });
   };
 
   const handleDecreaseExistence = (productId: number) => {
-    // Aquí iría una petición al backend para restar stock
     setProducts(products.map(p => 
       p.id === productId && p.existence > 0 ? { ...p, existence: p.existence - 1 } : p
     ));
-    toast({
-      title: "Existencia reducida",
-      description: "Se removió 1 unidad del producto",
-    });
+    toast({ title: "Existencia reducida" });
   };
 
   // --- Lógica de Eliminación ---
@@ -185,7 +196,6 @@ export default function Productos() {
 
   const confirmDeleteProduct = () => {
     if (selectedProductId) {
-      // Aquí iría router.delete(`/productos/${selectedProductId}`)
       setProducts(products.filter(p => p.id !== selectedProductId));
       toast({
         title: "Producto eliminado",
@@ -201,6 +211,7 @@ export default function Productos() {
     if (newCategoryName.trim() && !categories.includes(newCategoryName.trim())) {
       setCategories([...categories, newCategoryName.trim()]);
       setNewCategoryName("");
+      toast({ title: "Categoría agregada" });
     }
   };
 
@@ -259,6 +270,7 @@ export default function Productos() {
                     <TableHead>#</TableHead>
                     <TableHead>Código de barras</TableHead>
                     <TableHead>Descripción</TableHead>
+                    <TableHead>Categoría</TableHead>
                     <TableHead>P. compra</TableHead>
                     <TableHead>P. venta</TableHead>
                     <TableHead>Utilidad</TableHead>
@@ -273,11 +285,18 @@ export default function Productos() {
                       <TableCell>{product.id}</TableCell>
                       <TableCell>{product.barcode}</TableCell>
                       <TableCell>{product.description}</TableCell>
+                      <TableCell>{product.category}</TableCell>
                       <TableCell>$ {product.purchasePrice.toFixed(2)}</TableCell>
                       <TableCell>$ {product.salePrice.toFixed(2)}</TableCell>
-                      <TableCell>{product.unit}</TableCell>
-                      <TableCell>{product.existence}</TableCell>
-                      <TableCell>{product.stock}</TableCell>
+                      <TableCell className="font-semibold text-green-600">
+                         $ {(product.salePrice - product.purchasePrice).toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        <span className={product.existence <= product.minStock ? "text-red-500 font-bold" : ""}>
+                            {product.existence}
+                        </span>
+                      </TableCell>
+                      <TableCell>{product.minStock}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
                           {/* Botón MENOS */}
@@ -411,12 +430,12 @@ export default function Productos() {
 
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="stock">Stock *</Label>
+                  <Label htmlFor="stock">Existencia *</Label>
                   <Input
                     id="stock"
                     type="number"
-                    value={newProduct.stock}
-                    onChange={(e) => setNewProduct({ ...newProduct, stock: e.target.value })}
+                    value={newProduct.existence}
+                    onChange={(e) => setNewProduct({ ...newProduct, existence: e.target.value })}
                     placeholder="0"
                   />
                 </div>
@@ -425,16 +444,17 @@ export default function Productos() {
                   <Input
                     id="min-stock"
                     type="number"
-                    value={newProduct.existence}
-                    onChange={(e) => setNewProduct({ ...newProduct, existence: e.target.value })}
+                    value={newProduct.minStock}
+                    onChange={(e) => setNewProduct({ ...newProduct, minStock: e.target.value })}
                     placeholder="5"
-                    defaultValue="5"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="category">Categoría</Label>
                   <select
                     id="category"
+                    value={newProduct.category}
+                    onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <option value="">Sin categoría</option>
@@ -526,12 +546,12 @@ export default function Productos() {
 
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-stock">Stock *</Label>
+              <Label htmlFor="edit-stock">Existencia *</Label>
               <Input
                 id="edit-stock"
                 type="number"
-                value={editingProduct.stock}
-                onChange={(e) => setEditingProduct({ ...editingProduct, stock: e.target.value })}
+                value={editingProduct.existence}
+                onChange={(e) => setEditingProduct({ ...editingProduct, existence: e.target.value })}
                 placeholder="0"
               />
             </div>
@@ -540,8 +560,8 @@ export default function Productos() {
               <Input
                 id="edit-min-stock"
                 type="number"
-                value={editingProduct.existence}
-                onChange={(e) => setEditingProduct({ ...editingProduct, existence: e.target.value })}
+                value={editingProduct.minStock}
+                onChange={(e) => setEditingProduct({ ...editingProduct, minStock: e.target.value })}
                 placeholder="5"
               />
             </div>
@@ -549,6 +569,8 @@ export default function Productos() {
               <Label htmlFor="edit-category">Categoría</Label>
               <select
                 id="edit-category"
+                value={editingProduct.category}
+                onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value="">Sin categoría</option>
@@ -643,7 +665,7 @@ export default function Productos() {
           </DialogContent>
         </Dialog>
 
-        {/* --- DIALOGO 4: CONFIRMAR ELIMINACIÓN (NUEVO) --- */}
+        {/* --- DIALOGO 4: CONFIRMAR ELIMINACIÓN --- */}
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
