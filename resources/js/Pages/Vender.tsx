@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Head } from "@inertiajs/react";
 import MainLayout from "@/Layouts/MainLayout";
 import { Header } from "@/Components/Header";
-import { useToast } from "@/Hooks/use-toast"; // Usamos tu hook de toast
+import { useToast } from "@/Hooks/use-toast"; 
 import { 
   Search, 
   Plus, 
@@ -13,7 +13,10 @@ import {
   X, 
   User, 
   CreditCard, 
-  Banknote 
+  Banknote,
+  Phone,
+  Save,
+  UserPlus
 } from "lucide-react";
 
 // --- Interfaces para TypeScript ---
@@ -28,7 +31,12 @@ interface Product {
 interface CartItem extends Product {
   quantity: number;
   total: number;
-  price: number; // Normalizamos salePrice a price en el carrito
+  price: number; 
+}
+
+interface Customer {
+    name: string;
+    phone?: string;
 }
 
 // --- Componentes Auxiliares ---
@@ -149,7 +157,6 @@ export default function Vender() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [cartItems, setCartItems] = useState<CartItem[]>([
-     // Mantenemos un item inicial como en tu ejemplo original si lo deseas, o vacío
      { id: 1, barcode: "1", description: "Pan Blanco", quantity: 1, price: 20, total: 20, salePrice: 20, stock: 50 }
   ]);
   
@@ -157,6 +164,13 @@ export default function Vender() {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [amountReceived, setAmountReceived] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Estados para clientes
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [customerSearch, setCustomerSearch] = useState(""); // Nuevo estado para búsqueda de clientes
 
   // Filtrar productos
   const filteredProducts = allProducts.filter((product) =>
@@ -252,6 +266,31 @@ export default function Vender() {
     }
   };
 
+  const handleCreateCustomer = () => {
+      if(!newCustomerName.trim()) {
+          toast({ title: "Error", description: "El nombre del cliente es obligatorio", variant: "destructive" });
+          return;
+      }
+      
+      const newCustomer = { name: newCustomerName, phone: newCustomerPhone };
+      setSelectedCustomer(newCustomer);
+      setIsCreatingCustomer(false);
+      setNewCustomerName("");
+      setNewCustomerPhone("");
+      setCustomerSearch(""); // Limpiar búsqueda
+      
+      toast({ 
+          title: "Cliente Agregado", 
+          description: `${newCustomer.name} ha sido seleccionado.`,
+          className: "bg-blue-500 text-white border-none"
+      });
+  };
+
+  const handleRemoveCustomer = () => {
+      setSelectedCustomer(null);
+      setCustomerSearch("");
+  };
+
   const completeSale = () => {
     if (paymentMethod === "cash" && payment < total) {
       toast({
@@ -264,7 +303,7 @@ export default function Vender() {
 
     toast({
       title: "¡Venta Exitosa!",
-      description: `Cambio a entregar: $${change.toFixed(2)}`,
+      description: `Cliente: ${selectedCustomer ? selectedCustomer.name : 'Mostrador'} - Cambio: $${change.toFixed(2)}`,
       className: "bg-green-500 text-white border-none",
     });
 
@@ -272,6 +311,8 @@ export default function Vender() {
     setShowCheckout(false);
     setAmountReceived("");
     setPaymentMethod("cash");
+    setSelectedCustomer(null);
+    setCustomerSearch("");
     searchInputRef.current?.focus();
   };
 
@@ -436,14 +477,80 @@ export default function Vender() {
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                     Cliente (Opcional)
                   </label>
-                  <div className="relative group">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
-                    <input
-                      type="text"
-                      placeholder="Buscar cliente..."
-                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none transition-all"
-                    />
-                  </div>
+                  
+                  {isCreatingCustomer ? (
+                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-3 animate-in fade-in slide-in-from-top-2">
+                          <div className="flex justify-between items-center mb-2">
+                              <h4 className="font-semibold text-blue-700 flex items-center gap-2 text-sm">
+                                  <UserPlus className="w-4 h-4" /> Nuevo Cliente
+                              </h4>
+                              <button onClick={() => setIsCreatingCustomer(false)} className="text-gray-400 hover:text-red-500">
+                                  <X className="w-4 h-4" />
+                              </button>
+                          </div>
+                          <div className="space-y-3">
+                              <div className="relative">
+                                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                  <input 
+                                      autoFocus
+                                      type="text" 
+                                      placeholder="Nombre completo"
+                                      value={newCustomerName}
+                                      onChange={e => setNewCustomerName(e.target.value)}
+                                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  />
+                              </div>
+                              <div className="relative">
+                                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                  <input 
+                                      type="tel" 
+                                      placeholder="Número de celular"
+                                      value={newCustomerPhone}
+                                      onChange={e => setNewCustomerPhone(e.target.value)}
+                                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  />
+                              </div>
+                              <button 
+                                  onClick={handleCreateCustomer}
+                                  className="w-full py-2 bg-blue-600 text-white rounded-md text-sm font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                              >
+                                  <Save className="w-4 h-4" /> Guardar Cliente
+                              </button>
+                          </div>
+                      </div>
+                  ) : (
+                      <div className="flex gap-2">
+                          <div className="relative group flex-1">
+                              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+                              <input
+                              type="text"
+                              placeholder="Buscar cliente..."
+                              value={selectedCustomer ? selectedCustomer.name : customerSearch}
+                              readOnly={!!selectedCustomer}
+                              onChange={(e) => setCustomerSearch(e.target.value)}
+                              className="w-full pl-10 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:border-blue-500 focus:bg-white focus:outline-none transition-all"
+                              />
+                              {selectedCustomer && (
+                                  <button 
+                                      onClick={handleRemoveCustomer}
+                                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-200 rounded-full text-gray-500"
+                                      title="Quitar cliente"
+                                  >
+                                      <X className="w-4 h-4" />
+                                  </button>
+                              )}
+                          </div>
+                          {!selectedCustomer && (
+                              <button 
+                                  onClick={() => setIsCreatingCustomer(true)}
+                                  className="p-2.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 border border-blue-200 transition-colors"
+                                  title="Agregar Nuevo Cliente"
+                              >
+                                  <Plus className="w-5 h-5" />
+                              </button>
+                          )}
+                      </div>
+                  )}
                 </div>
 
                 {/* Calculadora de Cambio */}
